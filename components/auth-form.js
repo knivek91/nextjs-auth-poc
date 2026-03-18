@@ -2,11 +2,11 @@
 import Link from "next/link";
 
 import { useActionState } from "react";
-import { auth } from "@/actions/auth-actions";
+import { handleAuth } from "@/actions/auth-actions";
 
 // mode = 'login' | 'signup'
 export default function AuthForm({ mode }) {
-  const [formState, formAction] = useActionState(auth.bind(null, mode), {});
+  const [formState, formAction] = useActionState(handleAuth.bind(null, mode), {});
 
   return (
     <form

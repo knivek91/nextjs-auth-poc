@@ -1,9 +1,8 @@
 "use server";
 
-import { createAuthSession, destroySession } from "@/lib/auth";
-import { hashUserPassword, verifyPassword } from "@/lib/hash";
-import { createUser, getUserByEmail } from "@/lib/user";
+import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 export async function signup(_prevState, formData) {
   const email = formData.get("email");
@@ -23,49 +22,53 @@ export async function signup(_prevState, formData) {
     return { errors };
   }
 
-  const hashedPassword = hashUserPassword(password);
-
   try {
-    const userId = createUser(email, hashedPassword);
-    await createAuthSession(userId);
-    redirect("/training");
+    await auth.api.signUpEmail({
+      body: {
+        email,
+        password,
+        name: email.split("@")[0],
+      },
+      headers: await headers(),
+    });
   } catch (error) {
-    if ((error.code = "SQLITE_CONSTRAINT_UNIQUE")) {
+    console.error("Signup error:", error);
+    if (error.message?.includes("already exists")) {
       errors.email = "Email already exists.";
       return { errors };
     }
 
     throw error;
   }
+
+  redirect("/training");
 }
 
 export async function login(_prevState, formData) {
   const email = formData.get("email");
   const password = formData.get("password");
 
-  const existingUser = getUserByEmail(email);
-  if (!existingUser) {
+  try {
+    await auth.api.signInEmail({
+      body: {
+        email,
+        password,
+      },
+      headers: await headers(),
+    });
+  } catch (error) {
+    console.error("Login error:", error);
     return {
       errors: {
-        email: "Could not authenticate user.",
+        email: "Invalid credentials.",
       },
     };
   }
 
-  const isValidPassword = verifyPassword(existingUser.password, password);
-  if (!isValidPassword) {
-    return {
-      errors: {
-        password: "Could not authenticate user.",
-      },
-    };
-  }
-
-  await createAuthSession(existingUser.id);
   redirect("/training");
 }
 
-export async function auth(mode, prevState, formData) {
+export async function handleAuth(mode, prevState, formData) {
   if (mode === "signup") {
     return signup(prevState, formData);
   }
@@ -74,6 +77,9 @@ export async function auth(mode, prevState, formData) {
 }
 
 export async function logout() {
-  await destroySession();
+  await auth.api.signOut({
+    headers: await headers(),
+  });
+
   redirect("/");
 }
